@@ -34,9 +34,13 @@ int __builtin_clzll(unsigned long long);
   ((size_t)(1ULL << __builtin_clzll(__CPROVER_max_malloc_size)))
 
 // Initialises the given shadow memory map
+// k = 0 -> 1 byte per byte
+// k = 1 -> 2 byte per byte
+// k = 2 -> 4 byte per byte
+// k = 4 -> 8 byte per byte
 void shadow_map_init(shadow_map_t *smap, size_t k) {
   // 2^3 shadow bytes at most
-  __CPROVER_assert(k <= 3, "8 shadow bytes at most");
+  __CPROVER_assert(k <= 3, "8 shadow bytes per byte at most");
   *smap = (shadow_map_t){
       .k = k, .ptrs = __CPROVER_allocate(__nof_objects * sizeof(void *), 1)};
 }

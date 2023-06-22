@@ -7,9 +7,9 @@
   by user code to 2^k shadow bytes.
 
   A shadow map is modelled as a finite map from object IDs to lazily allocated
-  shadow objects. The size of a shadow object is 2^k times the size of its source
-  object. The map size is set to 2^nof-object-bits to accomodate as many objects
-  as possible in any symex run.
+  shadow objects. The size of a shadow object is 2^k times the size of its
+  source object. The map size is set to 2^nof-object-bits to accomodate as many
+  objects as possible in any symex run.
 
   Given a pointer `ptr` to some user byte, a pointer to the start of the k
   shadow bytes is obtained by changing the base address of `ptr` and scaling
@@ -20,8 +20,8 @@
 */
 
 typedef struct {
-  // scaling factor
-  size_t k;
+  // shift value
+  size_t shift;
   // array of pointers to shadow objects
   void **ptrs;
 } shadow_map_t;
@@ -34,15 +34,22 @@ int __builtin_clzll(unsigned long long);
   ((size_t)(1ULL << __builtin_clzll(__CPROVER_max_malloc_size)))
 
 // Initialises the given shadow memory map
-// k = 0 -> 1 byte per byte
-// k = 1 -> 2 byte per byte
-// k = 2 -> 4 byte per byte
-// k = 4 -> 8 byte per byte
-void shadow_map_init(shadow_map_t *smap, size_t k) {
-  // 2^3 shadow bytes at most
-  __CPROVER_assert(k <= 3, "8 shadow bytes per byte at most");
+void shadow_map_init(shadow_map_t *smap, size_t shadow_bytes_per_byte) {
+  __CPROVER_assert(1 == shadow_bytes_per_byte || 2 == shadow_bytes_per_byte ||
+                       4 == shadow_bytes_per_byte || 8 == shadow_bytes_per_byte,
+                   "shadow_bytes_per_byte must be in {1, 2, 4, 8}");
+  size_t shift = 3;
+  if (shadow_bytes_per_byte == 1) {
+    shift = 0;
+  } else if (shadow_bytes_per_byte == 2) {
+    shift = 1;
+  } else if (shadow_bytes_per_byte <= 4) {
+    shift = 2;
+  }
+  __CPROVER_assert(shift <= 3, "8 shadow bytes per byte at most");
   *smap = (shadow_map_t){
-      .k = k, .ptrs = __CPROVER_allocate(__nof_objects * sizeof(void *), 1)};
+      .shift = shift,
+      .ptrs = __CPROVER_allocate(__nof_objects * sizeof(void *), 1)};
 }
 
 // Returns a pointer to the shadow bytes of the byte pointed to by ptr
@@ -51,7 +58,7 @@ void *shadow_map_get(shadow_map_t *smap, void *ptr) {
   __CPROVER_size_t size = __CPROVER_OBJECT_SIZE(ptr);
   __CPROVER_size_t offset = __CPROVER_POINTER_OFFSET(ptr);
 
-  size_t max_size = SIZE_MAX >> smap->k;
+  size_t max_size = SIZE_MAX >> smap->shift;
   __CPROVER_assert(size <= max_size, " no overflow on size shift");
   __CPROVER_assert(offset <= max_size, " no overflow on offset shift");
 
@@ -59,11 +66,11 @@ void *shadow_map_get(shadow_map_t *smap, void *ptr) {
   void *sptr = smap->ptrs[id];
   if (!sptr) {
     // create shadow object if NULL
-    sptr = __CPROVER_allocate(size << smap->k, 1);
+    sptr = __CPROVER_allocate(size << smap->shift, 1);
     smap->ptrs[id] = sptr;
   }
   // rebase pointer and scale offset
-  return sptr + (offset << smap->k);
+  return sptr + (offset << smap->shift);
 }
 
 #endif

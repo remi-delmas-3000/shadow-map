@@ -11,7 +11,7 @@ The idea is to
 
 Every time an new object is allocated, we give it a non-deterministic base address that
 is constrained to be within the bounds of the address space,
-small enough to have size free bytes after it without overflowing the address space,
+small enough free space after it to hold the object without overflowing the address space,
 and outside of any of the currently alive object's address ranges.
 
 This shadow information allows us to compute a full-width pointer
@@ -51,13 +51,13 @@ void __shadow_init()
   __CPROVER_array_set(alloc_map, (shadow_alloc_t){.live = false, .size = 0, .base_address = 0});
 }
 
-// utility function: set the live bit to false for the object `__CROVER_POINTER_OBJECT(free_ptr)`
+// utility function: set the live bit to false for the object `__CROVER_POINTER_OBJECT(ptr)`
 void __shadow_free(void *ptr)
 {
   alloc_map[__CPROVER_POINTER_OBJECT(ptr)].live = false;
 }
 
-// utility function: initialize a shadow alloc object for `__CPROVER_POINTER_OBJECT(alloc_ptr)` and the given `size`.
+// utility function: initialize a shadow alloc object for `__CPROVER_POINTER_OBJECT(ptr)` and the given `size`.
 void __shadow_malloc(void *ptr, size_t size)
 {
   // a nondeterministic base address (understand as "there exists some base addres",
@@ -82,8 +82,6 @@ void __shadow_malloc(void *ptr, size_t size)
   alloc_map[__CPROVER_POINTER_OBJECT(ptr)] = new_shadow_alloc;
 }
 
-bool nondet_bool();
-
 // utility function: lift pointer equality check to full-width pointer values
 bool __pointer_eq(void *x, void *y)
 {
@@ -98,13 +96,15 @@ bool __pointer_eq(void *x, void *y)
 }
 
 #ifndef FULL_WIDTH
-// run `make address_reuse`
+// run with `make address_reuse`
 void main() {
     int *x = malloc(sizeof(int));
     int *y = malloc(sizeof(int));
+    // holds as expected
     __CPROVER_assert(x != y, "expected to hold because x and y are both live");
     free(x);
     int *z = malloc(sizeof(int));
+    // holds but shouldn't 
     __CPROVER_assert(x != z, "expected to fail because x was deallocated and z could reuse x's address");
 }
 #else
@@ -116,10 +116,12 @@ void main()
   __shadow_malloc(x, sizeof(int));
   int *y = malloc(sizeof(int));
   __shadow_malloc(y, sizeof(int));
+  // holds as expected
   __CPROVER_assert(!__pointer_eq(x, y), "expected to hold because x and y are both live");
   free(x);
   __shadow_free(x);
   int *z = malloc(sizeof(int));
+  // falsified as expected
   __CPROVER_assert(!__pointer_eq(x, z), "expected to fail because x was deallocated and z could reuse x's address");
 }
 #endif

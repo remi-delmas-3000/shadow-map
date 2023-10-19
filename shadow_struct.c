@@ -1,4 +1,4 @@
-#include "shadow_map.h"
+#include "shadow_map_mult.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>

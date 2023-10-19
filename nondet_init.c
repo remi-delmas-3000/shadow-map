@@ -28,7 +28,7 @@
  * havoc and the read to be added to the points to set of the pointer.
  */
 
-#include "shadow_map.h"
+#include "shadow_map_mult.h"
 
 int nondet_int();
 size_t nondet_size_t();
